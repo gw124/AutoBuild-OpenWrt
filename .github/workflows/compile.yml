@@ -21,12 +21,12 @@ env:
   WORKFLOW_TOKEN: ${{ secrets.WORKFLOW_TOKEN }}
   TZ: Asia/Shanghai
 
-
 jobs:
   build:
     name: 编译 "${{matrix.target}}"
     runs-on: ubuntu-22.04
-    if: ${{ github.event.repository.owner.id }} == ${{ github.event.sender.id }}
+    # ✅ 修复 1：去掉了 ${{ }}，解决语法警告
+    if: github.event.repository.owner.id == github.event.sender.id
     
     env:
       FOLDER_NAME: ${{ matrix.target }}
@@ -121,19 +121,23 @@ jobs:
         echo "编译开始时间..."
         START_TIME=`date +'%Y-%m-%d %H:%M:%S'`
         echo "START_SECONDS=$(date --date="$START_TIME" +%s)" >> $GITHUB_ENV
-        sudo mkdir -p /${{matrix.target}}
-        sudo chown $USER:$GROUPS /${{matrix.target}}
+        
+        # ✅ 修复 2：在工作区创建目录，避免根目录权限问题
+        mkdir -p ${{ github.workspace }}/${{matrix.target}}
+        
         echo "Home=${GITHUB_WORKSPACE}/openwrt" >> $GITHUB_ENV
         echo "PATH1=${GITHUB_WORKSPACE}/openwrt/build/${{matrix.target}}" >> $GITHUB_ENV
 
     - name: 下载源码
-      working-directory: /${{matrix.target}}
+      # ✅ 修复 3：使用正确的工作区路径
+      working-directory: ${{ github.workspace }}/${{matrix.target}}
       run: |
         git clone -b "$REPO_BRANCH" --single-branch "$REPO_URL" openwrt
         cd openwrt
         ./scripts/feeds update -a > /dev/null 2>&1
-        ln -sf /${{matrix.target}}/openwrt $GITHUB_WORKSPACE/openwrt
- 
+        # ✅ 修复 4：软链接指向正确路径
+        ln -sf ${{ github.workspace }}/${{matrix.target}}/openwrt $GITHUB_WORKSPACE/openwrt
+
     - name: 加载设置
       run: |
         echo "Compile_Date=$(date +%Y%m%d%H%M)" >> $GITHUB_ENV
@@ -146,22 +150,22 @@ jobs:
           ZZZ="package/lean/default-settings/files/zzz-default-settings"
           echo "DISTRIB_REVISION=$(cat $ZZZ|grep DISTRIB_REVISION= | sed 's/^.\{24\}//g' | sed 's/.\{26\}$//')" >> $GITHUB_ENV
           echo "KERNEL_PATCHVER=$(cat target/linux/x86/Makefile|grep KERNEL_PATCHVER | sed 's/^.\{17\}//g')" >> $GITHUB_ENV
-          echo "	    当前编译版本：$(cat $ZZZ|grep DISTRIB_REVISION= | sed 's/^.\{24\}//g' | sed 's/.\{26\}$//')"
-          echo "	    内核版本：$(cat target/linux/x86/Makefile|grep KERNEL_PATCHVER | sed 's/^.\{17\}//g')"
+          echo "      当前编译版本：$(cat $ZZZ|grep DISTRIB_REVISION= | sed 's/^.\{24\}//g' | sed 's/.\{26\}$//')"
+          echo "      内核版本：$(cat target/linux/x86/Makefile|grep KERNEL_PATCHVER | sed 's/^.\{17\}//g')"
           source "${PATH1}/common.sh" && Diy_lede
         elif [[ "${REPO_BRANCH}" == "openwrt-23.05" ]]; then
           ZZZ="package/emortal/default-settings/files/99-default-settings"
           echo "DISTRIB_REVISION=$(cat $ZZZ|grep DISTRIB_REVISION= | sed 's/^.\{24\}//g' | sed 's/.\{26\}$//')" >> $GITHUB_ENV
           echo "KERNEL_PATCHVER=$(cat target/linux/x86/Makefile|grep KERNEL_PATCHVER | sed 's/^.\{17\}//g')" >> $GITHUB_ENV
-          echo "	    当前编译版本：$(cat $ZZZ|grep DISTRIB_REVISION= | sed 's/^.\{24\}//g' | sed 's/.\{26\}$//')"
-          echo "	    内核版本：$(cat target/linux/x86/Makefile|grep KERNEL_PATCHVER | sed 's/^.\{17\}//g')"
+          echo "      当前编译版本：$(cat $ZZZ|grep DISTRIB_REVISION= | sed 's/^.\{24\}//g' | sed 's/.\{26\}$//')"
+          echo "      内核版本：$(cat target/linux/x86/Makefile|grep KERNEL_PATCHVER | sed 's/^.\{17\}//g')"
           source "${PATH1}/common.sh" && Diy_Immortalwrt
         elif [[ "${REPO_BRANCH}" == "openwrt-24.10" ]]; then
           ZZZ="package/emortal/default-settings/files/99-default-settings"
           echo "DISTRIB_REVISION=$(cat $ZZZ|grep DISTRIB_REVISION= | sed 's/^.\{24\}//g' | sed 's/.\{26\}$//')" >> $GITHUB_ENV
           echo "KERNEL_PATCHVER=$(cat target/linux/x86/Makefile|grep KERNEL_PATCHVER | sed 's/^.\{17\}//g')" >> $GITHUB_ENV
-          echo "	    当前编译版本：$(cat $ZZZ|grep DISTRIB_REVISION= | sed 's/^.\{24\}//g' | sed 's/.\{26\}$//')"
-          echo "	    内核版本：$(cat target/linux/x86/Makefile|grep KERNEL_PATCHVER | sed 's/^.\{17\}//g')"
+          echo "      当前编译版本：$(cat $ZZZ|grep DISTRIB_REVISION= | sed 's/^.\{24\}//g' | sed 's/.\{26\}$//')"
+          echo "      内核版本：$(cat target/linux/x86/Makefile|grep KERNEL_PATCHVER | sed 's/^.\{17\}//g')"
           source "${PATH1}/common.sh" && Diy_Immortalwrt_24.10
         fi
         source "${PATH1}/common.sh" && Diy_all
@@ -175,7 +179,7 @@ jobs:
         if [[ "${REGULAR_UPDATE}" == "true" ]]; then
           source "${PATH1}/upgrade.sh" && Diy_Part1
         fi
- 
+
     - name: 加载缓存
       if: env.USE_CACHEWRTBUILD == 'true'
       uses: stupidloud/cachewrtbuild@main
@@ -273,7 +277,7 @@ jobs:
       if: env.ORGANIZERSTATUS == 'success' && env.UPLOAD_RELEASE == 'true'
       run: |
         echo "### $(date +"%Y年%m月%d号-%H点%M分")" > update_log.txt
- 
+
     - name: 发布固件
       if: env.ORGANIZERSTATUS == 'success' && env.UPLOAD_RELEASE == 'true' && env.REPO_TOKEN
       uses: ncipollo/release-action@v1
@@ -300,7 +304,7 @@ jobs:
         tag: AutoUpdate
         overwrite: true
         file_glob: true
-        body: |                       
+        body: |                        
             ⛩️ 仓库源码 : ${{ env.REPO_URL }}
             
             📌 仓库分支 : ${{ env.REPO_BRANCH }}
@@ -337,4 +341,4 @@ jobs:
           curl -k --data chat_id="${{ secrets.TELEGRAM_CHAT_ID }}" --data "text=✨Congratulations✨：您使用【${{matrix.target}}】文件夹编译的[${{ env.CODE }}-${{ env.TARGET_PROFILE }}]固件(${{env.CangKu}}仓库的#${{env.Run_number}}号)顺利编译完成了！💐" "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage"
         elif [[ "${SERVERCHAN_SCKEY}" == "PUSH" ]]; then
           curl -k --data token="${{ secrets.PUSH_PLUS_TOKEN }}" --data title="[${{ env.CODE }}-${{ env.TARGET_PROFILE }}]编译成功" --data "content=✨Congratulations✨：您使用【${{matrix.target}}】文件夹编译的[${{ env.CODE }}-${{ env.TARGET_PROFILE }}]固件(${{env.CangKu}}仓库的#${{env.Run_number}}号)顺利编译完成了！💐" "http://www.pushplus.plus/send"
-        fi    
+        fi
