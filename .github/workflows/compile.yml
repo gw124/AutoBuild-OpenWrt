@@ -84,8 +84,8 @@ jobs:
 
     - name: 释放空间
       run: |
-        sudo rm -rf /etc/apt/sources.list.d
-        sudo bash -c "curl -s https://us.cooluc.com/ubuntu-apt/sources-22.04.list > /etc/apt/sources.list"
+        #sudo rm -rf /etc/apt/sources.list.d
+        #sudo bash -c "curl -s https://us.cooluc.com/ubuntu-apt/sources-22.04.list > /etc/apt/sources.list"
         sudo swapoff -a
         sudo rm -f /swapfile /mnt/swapfile
         sudo docker image prune -a -f
